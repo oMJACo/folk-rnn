@@ -37,7 +37,7 @@ class DataIterator(object):
 
         progress = defaultdict(int)
         available_lengths = self.len2idx.keys()
-        avai_lengths_map = {}
+        avail_lengths_map = {}
         for i, length in enumerate(available_lengths):
             avail_lengths_map[length] = i
         batch_idxs = []

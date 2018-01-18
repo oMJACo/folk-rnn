@@ -37,12 +37,16 @@ class DataIterator(object):
 
         progress = defaultdict(int)
         available_lengths = self.len2idx.keys()
-
+        avai_lengths_map = {}
+        for i, length in enumerate(available_lengths):
+            avail_lengths_map[length] = i
         batch_idxs = []
         b_size = self.batch_size
 
         get_tune_len = lambda: self.rng.choice(available_lengths)
         k = get_tune_len()
+        
+        
 
         while available_lengths:
             batch_idxs.extend(self.len2idx[k][progress[k]:progress[k] + b_size])
@@ -54,7 +58,8 @@ class DataIterator(object):
                 k = get_tune_len()
             else:
                 b_size = self.batch_size - len(batch_idxs)
-                i = available_lengths.index(k)
+               #i = available_lengths.index(k)
+                i = avail_lengths_map[k]
                 del available_lengths[i]
                 if not available_lengths:
                     break

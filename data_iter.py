@@ -1,6 +1,6 @@
 import numpy as np
 from collections import defaultdict
-from itertools import izip
+# from itertools import izip
 
 
 class DataIterator(object):
@@ -10,7 +10,7 @@ class DataIterator(object):
         self.tune_idxs = tune_idxs
 
         self.len2idx = defaultdict(list)
-        for k, v in izip(tune_lens, tune_idxs):
+        for k, v in zip(tune_lens, tune_idxs):
             self.len2idx[k].append(v)
 
         self.random_lens = random_lens
@@ -32,11 +32,11 @@ class DataIterator(object):
             available_idxs = np.delete(available_idxs, rand_idx)
 
     def __iter_homogeneous_lens(self):
-        for idxs in self.len2idx.itervalues():
+        for idxs in self.len2idx.values():
             self.rng.shuffle(idxs)
 
         progress = defaultdict(int)
-        available_lengths = self.len2idx.keys()
+        available_lengths = list(self.len2idx.keys())
         avail_lengths_map = {}
         for i, length in enumerate(available_lengths):
             avail_lengths_map[length] = i
@@ -45,9 +45,8 @@ class DataIterator(object):
 
         get_tune_len = lambda: self.rng.choice(available_lengths)
         k = get_tune_len()
-        
-        
-
+#         import pdb
+#         pdb.set_trace()
         while available_lengths:
             batch_idxs.extend(self.len2idx[k][progress[k]:progress[k] + b_size])
             progress[k] += b_size
@@ -58,7 +57,7 @@ class DataIterator(object):
                 k = get_tune_len()
             else:
                 b_size = self.batch_size - len(batch_idxs)
-               #i = available_lengths.index(k)
+#                 i = available_lengths.index(k)
                 i = avail_lengths_map[k]
                 del available_lengths[i]
                 if not available_lengths:

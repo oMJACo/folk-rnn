@@ -14,7 +14,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torch.autograd as autograd
 
-# Approach 1:
 # set up fields
 TEXT = data.Field(lower=False, batch_first=True, eos_token="<eos>")
 TGT  = data.Field(lower=False, batch_first=True, eos_token="<eos>")

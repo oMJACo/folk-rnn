@@ -2,7 +2,7 @@
 
 # How to Use:
 
-**data_loader.py: ** 
+**data_loader.py:** 
 Uses train_src, train_tgt, valid_src and valid_tgt data files. The train_src and valid_src files contain the original data missing titles. The train_tgt and valid_tgt files contain the left shifted data with an <eos> token at the end of each tune. 
 
 # Folk music style modelling using LSTMs

@@ -19,6 +19,8 @@ import ipdb
 TEXT = data.Field(lower=False, batch_first=True, eos_token="<eos>")
 TGT  = data.Field(lower=False, batch_first=True, eos_token="<eos>")
 
+ipdb.set_trace()
+
 # make splits for data
 train = datasets.MusicDataset(path='/home/mcowan/Dissertation/single_line_data/',
                               exts=('train_src', 'train_tgt'), 
@@ -42,11 +44,9 @@ train_iter, valid_iter = data.BucketIterator.splits(
 
 train_batch = next(iter(train_iter))
 valid_batch = next(iter(valid_iter))
-#can use batch.src, batch.trg
 
 def token_to_ix_src(batch):
     token_to_ix = {}
-    ipdb.set_trace()
     for src, trg in zip(batch.src, batch.trg):
         for token in src:
             if token not in token_to_ix:
@@ -66,8 +66,8 @@ def prepare_sequence(tune, to_ix):
     tensor = torch.LongTensor(idxs)
     return autograd.Variable(tensor)
 
-EMBEDDING_DIM = 100
-HIDDEN_DIM = 100
+EMBEDDING_DIM = 32
+HIDDEN_DIM = 32
 
 class LSTM(nn.Module):
 
@@ -88,20 +88,25 @@ class LSTM(nn.Module):
 
     def forward(self, tune):
         embeds = self.word_embeddings(tune)
+
         lstm_out, self.hidden = self.lstm(
                 embeds.view(len(tune), 1, -1), self.hidden)
+
         trg_space = self.hidden2trg(lstm_out.view(len(tune), -1))
+
         trg_scores = F.log_softmax(trg_space, dim=1)
+        return(trg_scores)
 
 #Train Model
+print('Train Model...')
 
 model = LSTM(EMBEDDING_DIM, HIDDEN_DIM, len(TEXT.vocab), len(TGT.vocab))
 loss_function = nn.NLLLoss()
 optimizer = optim.SGD(model.parameters(), lr = 0.1)
 
 for tune in train_iter:
+        print('New batch started')
     for src, trg in zip(tune.src, tune.trg):
-        ipdb.set_trace()
         model.zero_grad()
         model.hidden = model.init_hidden()
 
@@ -109,17 +114,10 @@ for tune in train_iter:
         #targets = prepare_sequence(trg, token_to_ix_trg(tune))
 
         target_scores = model(src)
-        print(target_scores)
-        ipdb.set_trace()
 
         loss = loss_function(target_scores, trg)
         loss.backward()
         optimizer.step()
 
 print(tag_scores)
-
-
-
-
-
-
+print(loss)

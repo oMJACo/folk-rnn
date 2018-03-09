@@ -60,7 +60,6 @@ if torch.cuda.is_available():
 
 # set up fields
 TEXT = data.Field(lower=False, batch_first=True, eos_token="<eos>")
-#TGT  = data.Field(lower=False, batch_first=True, eos_token="<eos>")
 
 # make splits for data
 train_data = datasets.MusicDataset(path='/home/mcowan/Dissertation/single_line_data/',

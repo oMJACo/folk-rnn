@@ -2,6 +2,9 @@
 
 # How to Use:
 
+**main.py:**
+Uses data_loader to load and split the data.
+
 **data_loader.py:** 
 Uses train_src, train_tgt, valid_src and valid_tgt data files. The train_src and valid_src files contain the original data missing titles. The train_tgt and valid_tgt files contain the left shifted data with an <eos> token at the end of each tune. 
 

@@ -1,15 +1,25 @@
 # coding: utf-8
-import argparse
-import time
-import math
-import torch
-import torch.nn as nn
-from torch.autograd import Variable
-from torchtext import data
-from torchtext import datasets
-import ipdb
 
+print('Running...')
+import argparse
+print('argparse done')
+import time
+print('time done')
+import math
+print('math done')
+import torch
+print('torch done')
+import torch.nn as nn
+print('nn done')
+from torch.autograd import Variable
+print('autograd done')
+from torchtext import data
+print('data done')
+from torchtext import datasets
+print('datasets done')
 import model
+print('model done')
+print('Imports Complete...')
 
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Language Model')
 parser.add_argument('--data', type=str, default='./data/wikitext-2',
@@ -22,7 +32,7 @@ parser.add_argument('--nhid', type=int, default=200,
                     help='number of hidden units per layer')
 parser.add_argument('--nlayers', type=int, default=2,
                     help='number of layers')
-parser.add_argument('--lr', type=float, default=20,
+parser.add_argument('--lr', type=float, default=0.03,
                     help='initial learning rate')
 parser.add_argument('--clip', type=float, default=0.25,
                     help='gradient clipping')
@@ -30,7 +40,7 @@ parser.add_argument('--epochs', type=int, default=40,
                     help='upper epoch limit')
 parser.add_argument('--batch_size', type=int, default=64, metavar='N',
                     help='batch size')
-parser.add_argument('--bptt', type=int, default=64,
+parser.add_argument('--bptt', type=int, default=200,
                     help='sequence length')
 parser.add_argument('--dropout', type=float, default=0.2,
                     help='dropout applied to layers (0 = no dropout)')
@@ -52,12 +62,14 @@ if torch.cuda.is_available():
     if not args.cuda:
         print("WARNING: You have a CUDA device, so you should probably run with --cuda")
     else:
+        import ipdb
+        ipdb.set_trace()
         torch.cuda.manual_seed(args.seed)
 
 ###############################################################################
 # Load data
 ###############################################################################
-
+print('Loading data...')
 # set up fields
 TEXT = data.Field(lower=False, batch_first=True, eos_token="<eos>")
 
@@ -79,20 +91,20 @@ train_iter, valid_iter = data.BucketIterator.splits(
     (train_data, valid_data), batch_size=(64), device=-1)
 
 train_batch = next(iter(train_iter))
-print(train_batch.src)
-print(train_batch.trg)
+
+print('Loading data complete...')
 
 ###############################################################################
 # Build the model
 ###############################################################################
-
+print('Building the model...')
 ntokens = vocab_length
 model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied)
 if args.cuda:
     model.cuda()
 
 criterion = nn.CrossEntropyLoss()
-
+print('Building model complete...')
 ###############################################################################
 # Training code
 ###############################################################################
@@ -119,27 +131,32 @@ def evaluate(data_source):
         hidden = repackage_hidden(hidden)
     return total_loss[0] / len(data_source)
 
-
+print('Starting Training')
 def train():
     # Turn on training mode which enables dropout.
     model.train()
     total_loss = 0
+    batch_number =0
     start_time = time.time()
     ntokens = vocab_length
     hidden = model.init_hidden(args.batch_size)
+
     for batch in train_iter:
-        data = batch.src
-        targets = batch.trg
+        print('Batch: ', batch_number + 1)
+        batch_number+=1
+        data = batch.src.transpose(0,1)
+        targets = batch.trg.transpose(0,1)
+        targets.contiguous()
         # Starting each batch, we detach the hidden state from how it was previously produced.
         # If we didn't, the model would try backpropagating all the way to start of the dataset.
         hidden = repackage_hidden(hidden)
         model.zero_grad()
-
-        ipdb.set_trace()
         output, hidden = model(data, hidden)
-        loss = criterion(output.view(-1, ntokens), targets)
+
+        loss = criterion(output.view(-1, ntokens), targets.view(-1))
         loss.backward()
 
+        
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
         torch.nn.utils.clip_grad_norm(model.parameters(), args.clip)
         for p in model.parameters():
@@ -147,12 +164,13 @@ def train():
 
         total_loss += loss.data
 
-        if batch % args.log_interval == 0 and batch > 0:
+        if batch_number % args.log_interval == 0 and batch_number > 0:
             cur_loss = total_loss[0] / args.log_interval
+            print(cur_loss)
             elapsed = time.time() - start_time
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
                     'loss {:5.2f} | ppl {:8.2f}'.format(
-                epoch, batch, len(train_data) // args.bptt, lr,
+                epoch, batch_number, len(train_data) // args.bptt, lr,
                 elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
             total_loss = 0
             start_time = time.time()
@@ -194,3 +212,4 @@ print('=' * 89)
 print('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(
     test_loss, math.exp(test_loss)))
 print('=' * 89)
+

@@ -1,25 +1,14 @@
 # coding: utf-8
 
-print('Running...')
 import argparse
-print('argparse done')
 import time
-print('time done')
 import math
-print('math done')
 import torch
-print('torch done')
 import torch.nn as nn
-print('nn done')
 from torch.autograd import Variable
-print('autograd done')
 from torchtext import data
-print('data done')
 from torchtext import datasets
-print('datasets done')
 import model
-print('model done')
-print('Imports Complete...')
 
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Language Model')
 parser.add_argument('--data', type=str, default='./data/wikitext-2',
@@ -32,13 +21,13 @@ parser.add_argument('--nhid', type=int, default=200,
                     help='number of hidden units per layer')
 parser.add_argument('--nlayers', type=int, default=2,
                     help='number of layers')
-parser.add_argument('--lr', type=float, default=0.03,
+parser.add_argument('--lr', type=float, default=20,
                     help='initial learning rate')
 parser.add_argument('--clip', type=float, default=0.25,
                     help='gradient clipping')
 parser.add_argument('--epochs', type=int, default=40,
                     help='upper epoch limit')
-parser.add_argument('--batch_size', type=int, default=64, metavar='N',
+parser.add_argument('--batch_size', type=int, default=50, metavar='N',
                     help='batch size')
 parser.add_argument('--bptt', type=int, default=200,
                     help='sequence length')
@@ -78,7 +67,7 @@ train_data = datasets.MusicDataset(path='/home/mcowan/Dissertation/single_line_d
                               exts=('train_src', 'train_tgt'), 
                               fields=[('src',TEXT),('trg',TEXT)])
 
-valid_data = datasets.MusicDataset(path='/home/mcowan/Dissertation/single_line_data/',
+val_data = datasets.MusicDataset(path='/home/mcowan/Dissertation/single_line_data/',
                               exts=('valid_src', 'valid_tgt'),
                               fields=[('src',TEXT),('trg', TEXT)])
 
@@ -88,11 +77,7 @@ vocab_length = len(TEXT.vocab)
 
 # make iterator for splits
 train_iter, valid_iter = data.BucketIterator.splits(
-    (train_data, valid_data), batch_size=(64), device=-1)
-
-train_batch = next(iter(train_iter))
-
-print('Loading data complete...')
+    (train_data, val_data), batch_sizes=(50,50), device=0)
 
 ###############################################################################
 # Build the model
@@ -104,10 +89,13 @@ if args.cuda:
     model.cuda()
 
 criterion = nn.CrossEntropyLoss()
+
 print('Building model complete...')
 ###############################################################################
 # Training code
 ###############################################################################
+
+eval_batch_size=50
 
 def repackage_hidden(h):
     """Wraps hidden states in new Variables, to detach them from their history."""
@@ -120,33 +108,49 @@ def evaluate(data_source):
     # Turn on evaluation mode which disables dropout.
     model.eval()
     total_loss = 0
+    val_batch_number = 0
     ntokens = vocab_length
     hidden = model.init_hidden(eval_batch_size)
-    for i in range(0, data_source.size(0) - 1, args.bptt):
-        valid_batch = next(iter(valid_iter))
-        data, targets = valid_batch.src, valid_batch.trg
+    
+    for batch in valid_iter:
+      
+        print('Validation batch', val_batch_number + 1)
+        val_batch_number += 1
+        if val_batch_number >= 800: break
+          
+        data = batch.src.transpose(0,1)
+        targets = batch.trg.transpose(0,1)
+        targets.contiguous()
+        
         output, hidden = model(data, hidden)
         output_flat = output.view(-1, ntokens)
-        total_loss += len(data) * criterion(output_flat, targets).data
+        total_loss += len(data) * criterion(output_flat, targets.view(-1)).data
         hidden = repackage_hidden(hidden)
     return total_loss[0] / len(data_source)
 
 print('Starting Training')
+
 def train():
     # Turn on training mode which enables dropout.
     model.train()
     total_loss = 0
-    batch_number =0
+    batch_number = 0
     start_time = time.time()
     ntokens = vocab_length
     hidden = model.init_hidden(args.batch_size)
 
     for batch in train_iter:
-        print('Batch: ', batch_number + 1)
-        batch_number+=1
+      
+        print('Train batch: ', batch_number + 1)
+        batch_number += 1
+        #This is done temporarily to test other parts of the program. There are more than 
+        #(batch_size * number_of_batches) tunes for some reason.
+        if batch_number >= 800: break 
+          
         data = batch.src.transpose(0,1)
         targets = batch.trg.transpose(0,1)
         targets.contiguous()
+        
         # Starting each batch, we detach the hidden state from how it was previously produced.
         # If we didn't, the model would try backpropagating all the way to start of the dataset.
         hidden = repackage_hidden(hidden)
@@ -156,7 +160,6 @@ def train():
         loss = criterion(output.view(-1, ntokens), targets.view(-1))
         loss.backward()
 
-        
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
         torch.nn.utils.clip_grad_norm(model.parameters(), args.clip)
         for p in model.parameters():
@@ -166,11 +169,10 @@ def train():
 
         if batch_number % args.log_interval == 0 and batch_number > 0:
             cur_loss = total_loss[0] / args.log_interval
-            print(cur_loss)
             elapsed = time.time() - start_time
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
                     'loss {:5.2f} | ppl {:8.2f}'.format(
-                epoch, batch_number, len(train_data) // args.bptt, lr,
+                epoch, batch_number, len(train_data) // args.batch_size, lr,
                 elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
             total_loss = 0
             start_time = time.time()
@@ -212,4 +214,3 @@ print('=' * 89)
 print('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(
     test_loss, math.exp(test_loss)))
 print('=' * 89)
-

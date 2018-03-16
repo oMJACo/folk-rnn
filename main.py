@@ -8,6 +8,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 from torchtext import data
 from torchtext import datasets
+from music_dataset import MusicDataset
 import model
 
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Language Model')
@@ -51,8 +52,8 @@ if torch.cuda.is_available():
     if not args.cuda:
         print("WARNING: You have a CUDA device, so you should probably run with --cuda")
     else:
-        import ipdb
-        ipdb.set_trace()
+#         import ipdb
+#         ipdb.set_trace()
         torch.cuda.manual_seed(args.seed)
 
 ###############################################################################
@@ -63,11 +64,11 @@ print('Loading data...')
 TEXT = data.Field(lower=False, batch_first=True, eos_token="<eos>")
 
 # make splits for data
-train_data = datasets.MusicDataset(path='/home/mcowan/Dissertation/single_line_data/',
+train_data = MusicDataset(path='data/',
                               exts=('train_src', 'train_tgt'), 
                               fields=[('src',TEXT),('trg',TEXT)])
 
-val_data = datasets.MusicDataset(path='/home/mcowan/Dissertation/single_line_data/',
+val_data = MusicDataset(path='data/',
                               exts=('valid_src', 'valid_tgt'),
                               fields=[('src',TEXT),('trg', TEXT)])
 
@@ -114,7 +115,7 @@ def evaluate(data_source):
     
     for batch in valid_iter:
       
-        print('Validation batch', val_batch_number + 1)
+#         print('Validation batch', val_batch_number + 1)
         val_batch_number += 1
         if val_batch_number >= 800: break
           
@@ -141,7 +142,7 @@ def train():
 
     for batch in train_iter:
       
-        print('Train batch: ', batch_number + 1)
+#         print('Train batch: ', batch_number + 1)
         batch_number += 1
         #This is done temporarily to test other parts of the program. There are more than 
         #(batch_size * number_of_batches) tunes for some reason.
@@ -209,8 +210,8 @@ with open(args.save, 'rb') as f:
     model = torch.load(f)
 
 # Run on test data.
-test_loss = evaluate(test_data)
-print('=' * 89)
-print('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(
-    test_loss, math.exp(test_loss)))
-print('=' * 89)
+# test_loss = evaluate(test_data)
+# print('=' * 89)
+# print('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(
+#     test_loss, math.exp(test_loss)))
+# print('=' * 89)

@@ -2,3 +2,5 @@
 *.pyc
 *.pkl
 data/
+*.pt
+*.swp

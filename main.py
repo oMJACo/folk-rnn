@@ -1,6 +1,7 @@
 # coding: utf-8
 
 import argparse
+import os
 import time
 import math
 import torch
@@ -24,6 +25,8 @@ parser.add_argument('--nlayers', type=int, default=2,
                     help='number of layers')
 parser.add_argument('--lr', type=float, default=20,
                     help='initial learning rate')
+parser.add_argument('--lr_decay', type=float, default=0.95,
+                    help='initial learning rate')
 parser.add_argument('--clip', type=float, default=0.25,
                     help='gradient clipping')
 parser.add_argument('--epochs', type=int, default=40,
@@ -46,6 +49,9 @@ parser.add_argument('--save', type=str,  default='model.pt',
                     help='path to save the final model')
 args = parser.parse_args()
 
+if not os.path.exists(args.save):
+    os.makedirs(args.save)
+
 # Set the random seed manually for reproducibility.
 torch.manual_seed(args.seed)
 if torch.cuda.is_available():
@@ -65,7 +71,7 @@ TEXT = data.Field(lower=False, batch_first=True, eos_token="<eos>")
 
 # make splits for data
 train_data = MusicDataset(path='data/',
-                              exts=('train_src', 'train_tgt'), 
+                              exts=('train_src', 'train_tgt'),
                               fields=[('src',TEXT),('trg',TEXT)])
 
 val_data = MusicDataset(path='data/',
@@ -78,11 +84,12 @@ vocab_length = len(TEXT.vocab)
 
 # make iterator for splits
 train_iter, valid_iter = data.BucketIterator.splits(
-    (train_data, val_data), batch_sizes=(50,50), device=0)
+    (train_data, val_data), batch_sizes=(50,50), device=0, repeat=False)
 
 ###############################################################################
 # Build the model
 ###############################################################################
+
 print('Building the model...')
 ntokens = vocab_length
 model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied)
@@ -91,12 +98,9 @@ if args.cuda:
 
 criterion = nn.CrossEntropyLoss()
 
-print('Building model complete...')
 ###############################################################################
 # Training code
 ###############################################################################
-
-eval_batch_size=50
 
 def repackage_hidden(h):
     """Wraps hidden states in new Variables, to detach them from their history."""
@@ -111,22 +115,21 @@ def evaluate(data_source):
     total_loss = 0
     val_batch_number = 0
     ntokens = vocab_length
-    hidden = model.init_hidden(eval_batch_size)
-    
+    hidden = model.init_hidden(args.batch_size)
+
     for batch in valid_iter:
-      
-#         print('Validation batch', val_batch_number + 1)
+
         val_batch_number += 1
-        if val_batch_number >= 800: break
-          
+
         data = batch.src.transpose(0,1)
         targets = batch.trg.transpose(0,1)
         targets.contiguous()
-        
+
         output, hidden = model(data, hidden)
         output_flat = output.view(-1, ntokens)
         total_loss += len(data) * criterion(output_flat, targets.view(-1)).data
         hidden = repackage_hidden(hidden)
+
     return total_loss[0] / len(data_source)
 
 print('Starting Training')
@@ -141,27 +144,20 @@ def train():
     hidden = model.init_hidden(args.batch_size)
 
     for batch in train_iter:
-      
-#         print('Train batch: ', batch_number + 1)
+
         batch_number += 1
-        #This is done temporarily to test other parts of the program. There are more than 
-        #(batch_size * number_of_batches) tunes for some reason.
-        if batch_number >= 800: break 
-          
+
         data = batch.src.transpose(0,1)
         targets = batch.trg.transpose(0,1)
         targets.contiguous()
-        
-        # Starting each batch, we detach the hidden state from how it was previously produced.
-        # If we didn't, the model would try backpropagating all the way to start of the dataset.
+
         hidden = repackage_hidden(hidden)
         model.zero_grad()
         output, hidden = model(data, hidden)
 
-        loss = criterion(output.view(-1, ntokens), targets.view(-1))
+        loss = criterion(output.view(-1,ntokens), targets.view(-1))
         loss.backward()
 
-        # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
         torch.nn.utils.clip_grad_norm(model.parameters(), args.clip)
         for p in model.parameters():
             p.data.add_(-lr, p.grad.data)
@@ -192,21 +188,37 @@ try:
         print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
                 'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
                                            val_loss, math.exp(val_loss)))
+
+        with open(args.save + '/summary.txt', 'w') as summary_file:
+            summary_file.write('-' * 89)
+            summary_file.write('| End of epoch {:3d} | time: {:5.2f}s | valid_loss {:5.2f} | '
+                                 'valid ppl {:8.2f}'.format(epoch,
+                                                            (time.time() - epoch_start_time),
+                                                            val_loss, math.exp(val_loss)))
+            summary_file.write('-' * 89)
+
         print('-' * 89)
         # Save the model if the validation loss is the best we've seen so far.
         if not best_val_loss or val_loss < best_val_loss:
-            with open(args.save, 'wb') as f:
+            with open(args.save + '/model.pt', 'wb') as f:
+                print('Saving best model at epoch ' + str(epoch) + '\n')
                 torch.save(model, f)
             best_val_loss = val_loss
+            with open(args.save + '/summary.txt', 'w') as summary_file:
+                summary = ('Best val perplexity: ' + str(math.exp(best_val_loss)) + ' at epoch ' + str(epoch) + '\n')
+                print(summary)
+                summary_file.write(summary)
+
         else:
             # Anneal the learning rate if no improvement has been seen in the validation dataset.
-            lr /= 4.0
+            lr *= args.lr_decay
+
 except KeyboardInterrupt:
     print('-' * 89)
-    print('Exiting from training early')
+    print('Exiting from training early with best val perplexity: ' + str(math.exp(best_val_loss)))
 
 # Load the best saved model.
-with open(args.save, 'rb') as f:
+with open(args.save + '/model.pt', 'rb') as f:
     model = torch.load(f)
 
 # Run on test data.
